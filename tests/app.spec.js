@@ -4,6 +4,9 @@ async function add(page, text, date = "2026-10-24") {
   await page.getByLabel("记录日期").fill(date);
   await page.getByLabel("记录内容").fill(text);
   await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ has: page.getByLabel("记录内容") }),
+  ).not.toBeVisible();
 }
 test.beforeEach(async ({ page }) => {
   await page.clock.install({ time: new Date("2026-11-04T10:00:00+08:00") });
@@ -362,4 +365,74 @@ test("跨时区恢复保留原所属日期，并能读取原日期的记录", as
     page.getByRole("button", { name: "记一条", exact: true }),
   ).toBeDisabled();
   await context.close();
+});
+
+test("恢复已提交但读取失败时立即展示备份内容，不让旧记录复活", async ({
+  page,
+}) => {
+  await add(page, "恢复前旧记录");
+  await page.getByRole("button", { name: "设置与备份", exact: true }).click();
+  await page.getByLabel("选择备份文件").setInputFiles({
+    name: "restore.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        app: "xiajibaji",
+        version: 1,
+        entries: [
+          {
+            id: "restored-record",
+            date: "2026-10-23",
+            text: "备份中的记录",
+            createdAt: 1,
+          },
+        ],
+      }),
+    ),
+  });
+  const backupDownload = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "下载当前备份并继续", exact: true })
+    .click();
+  await backupDownload;
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function (...args) {
+      if (!args[1] || args[1] === "readonly")
+        throw new DOMException("Read unavailable", "UnknownError");
+      return original.apply(this, args);
+    };
+  });
+  await page
+    .getByRole("button", { name: "确认替换全部记录", exact: true })
+    .click();
+  await expect(
+    page.getByText("已恢复 1 条记录", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: /2026-10-24，0 条/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "修改记录：恢复前旧记录", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: /2026-10-23，1 条/ }).click();
+  await expect(page.getByLabel("当天记录")).toContainText("备份中的记录");
+  await page
+    .getByRole("button", { name: "修改记录：备份中的记录", exact: true })
+    .click();
+  await page.getByLabel("记录内容").fill("恢复后编辑的新记录");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ has: page.getByLabel("记录内容") }),
+  ).not.toBeVisible();
+  await expect(page.getByLabel("当天记录")).toContainText("恢复后编辑的新记录");
+  await page.reload();
+  await page.getByRole("button", { name: "上个月", exact: true }).click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+  await expect(
+    page.getByRole("button", { name: /2026-10-24，0 条/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /2026-10-23，1 条/ }).click();
+  await expect(page.getByLabel("当天记录")).toContainText("恢复后编辑的新记录");
 });

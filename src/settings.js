@@ -6,7 +6,7 @@ function el(id) {
   if (!node) throw new Error(id);
   return node;
 }
-/** @param {()=>Promise<void>} onRestore */
+/** @param {(entries:data.Entry[])=>void} onRestore */
 export function setupSettings(onRestore) {
   const dialog = /** @type {HTMLDialogElement} */ (el("settings-dialog")),
     fileInput = /** @type {HTMLInputElement} */ (el("backup-file"));
@@ -111,7 +111,7 @@ export function setupSettings(onRestore) {
       pending = null;
       el("restore-stage").hidden = true;
       el("backup-error").textContent = "";
-      await onRestore();
+      onRestore(items);
       el("backup-status").textContent = `已恢复 ${items.length} 条记录`;
     } catch {
       el("backup-error").textContent = "恢复失败，现有记录未被替换，请重试。";

@@ -279,10 +279,12 @@ await start();
 
 el("#export-open").onclick = () => openExport(entries, month);
 
-setupSettings(async () => {
+setupSettings((restoredEntries) => {
+  entries = restoredEntries;
   deleted = null;
+  clearTimeout(toastTimer);
   el("#toast").hidden = true;
-  await start();
+  render();
 });
 
 void setupOffline();
