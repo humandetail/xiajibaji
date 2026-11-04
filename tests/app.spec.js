@@ -62,7 +62,11 @@ test("修改移动、删除撤销与保存失败都保留正确记录", async ({
 test("月度文字筛选、复制与实际文件一致", async ({ page }) => {
   await add(page, "跑步\n三公里");
   await add(page, "不想分享的事情");
-  await page.getByRole("button", { name: "导出本月", exact: true }).click();
+  await page.getByRole("button", { name: "导出记录", exact: true }).click();
+  await page.getByRole("button", { name: "自定义", exact: true }).click();
+  await page.getByLabel("开始日期").fill("2026-10-01");
+  await page.getByLabel("结束日期").fill("2026-10-31");
+
   await page.getByRole("button", { name: "筛选记录", exact: true }).click();
   await page
     .getByRole("checkbox", { name: "不想分享的事情", exact: true })
@@ -98,12 +102,16 @@ test("月度长图完整预览并把长文字拆成多张可下载图片", async
       ).join("\n") +
       "\n末尾标记",
   );
-  await page.getByRole("button", { name: "导出本月", exact: true }).click();
-  await page.getByRole("tab", { name: "月度长图", exact: true }).click();
+  await page.getByRole("button", { name: "导出记录", exact: true }).click();
+  await page.getByRole("button", { name: "自定义", exact: true }).click();
+  await page.getByLabel("开始日期").fill("2026-10-01");
+  await page.getByLabel("结束日期").fill("2026-10-31");
+
+  await page.getByRole("tab", { name: "长图", exact: true }).click();
   await expect(
-    page.getByRole("img", { name: "月度长图第 1 张", exact: true }),
+    page.getByRole("img", { name: "回顾长图第 1 张", exact: true }),
   ).toBeVisible();
-  const images = page.getByRole("img", { name: /月度长图第/ });
+  const images = page.getByRole("img", { name: /回顾长图第/ });
   await expect.poll(() => images.count()).toBeGreaterThan(1);
   await page.getByRole("button", { name: "保存长图", exact: true }).click();
   const link = page.getByRole("link", { name: "下载第 1 张", exact: true });
@@ -250,7 +258,11 @@ test("导出失败保留筛选并可重试，排除记录不会出现在图片�
 }) => {
   await add(page, "公开记录");
   await add(page, "私密记录");
-  await page.getByRole("button", { name: "导出本月", exact: true }).click();
+  await page.getByRole("button", { name: "导出记录", exact: true }).click();
+  await page.getByRole("button", { name: "自定义", exact: true }).click();
+  await page.getByLabel("开始日期").fill("2026-10-01");
+  await page.getByLabel("结束日期").fill("2026-10-31");
+
   await page.getByRole("button", { name: "筛选记录", exact: true }).click();
   await page.getByRole("checkbox", { name: "私密记录", exact: true }).uncheck();
   await page.getByRole("button", { name: "完成筛选", exact: true }).click();
@@ -267,7 +279,7 @@ test("导出失败保留筛选并可重试，排除记录不会出现在图片�
     };
   });
   await page.getByRole("tab", { name: "纯文字", exact: true }).click();
-  await page.getByRole("tab", { name: "月度长图", exact: true }).click();
+  await page.getByRole("tab", { name: "长图", exact: true }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "长图生成失败" }),
   ).toBeVisible();
@@ -292,9 +304,9 @@ test("导出失败保留筛选并可重试，排除记录不会出现在图片�
     page.getByRole("status").filter({ hasText: "复制失败" }),
   ).toBeVisible();
   await expect(page.getByLabel("文字预览")).not.toContainText("私密记录");
-  await page.getByRole("tab", { name: "月度长图", exact: true }).click();
+  await page.getByRole("tab", { name: "长图", exact: true }).click();
   await expect(
-    page.getByRole("img", { name: "月度长图第 1 张", exact: true }),
+    page.getByRole("img", { name: "回顾长图第 1 张", exact: true }),
   ).toBeVisible();
 });
 test("写入成功后即使读取暂时失败，也不误报失败或重复记录", async ({ page }) => {
@@ -474,4 +486,109 @@ test("取消安装后隐藏失效入口，新请求可重新安装且异常提�
       exact: true,
     }),
   ).toBeVisible();
+});
+
+test("导出支持本年本月本周今日和最长一年的自定义范围", async ({ page }) => {
+  for (const [date, text] of [
+    ["2025-11-04", "去年记录"],
+    ["2026-01-01", "年初记录"],
+    ["2026-10-31", "十月记录"],
+    ["2026-11-01", "周日记录"],
+    ["2026-11-02", "周一记录"],
+    ["2026-11-03", "昨天记录"],
+    ["2026-11-04", "今日记录"],
+  ])
+    await add(page, text, date);
+  await page.getByRole("button", { name: "导出记录", exact: true }).click();
+  await page.getByRole("tab", { name: "纯文字", exact: true }).click();
+  const preview = page.getByLabel("文字预览");
+  for (const [label, count] of [
+    ["本年", 6],
+    ["本月", 4],
+    ["本周", 3],
+    ["今日", 1],
+  ]) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await expect(preview).toContainText(`共 ${count} 条`);
+    await expect(preview).not.toContainText("去年记录");
+  }
+  await page.getByRole("button", { name: "自定义", exact: true }).click();
+  await page.getByLabel("开始日期").fill("2025-11-05");
+  await page.getByLabel("结束日期").fill("2026-11-04");
+  await expect(preview).toContainText("共 6 条");
+  await expect(preview).toContainText("2025-11-05 至 2026-11-04");
+  await page.getByLabel("开始日期").fill("2025-11-04");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "最多一年" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "下载文字", exact: true }),
+  ).not.toBeVisible();
+  await page.getByLabel("开始日期").fill("2026-11-04");
+  await page.getByLabel("结束日期").fill("2026-11-03");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "不能早于" }),
+  ).toBeVisible();
+  await page.getByLabel("开始日期").fill("2024-01-01");
+  await page.getByLabel("结束日期").fill("2024-12-31");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "最多一年" }),
+  ).not.toBeVisible();
+  await expect(preview).toContainText("2024-01-01 至 2024-12-31");
+  await page.getByRole("button", { name: "本年", exact: true }).click();
+  await page.getByRole("button", { name: "筛选记录", exact: true }).click();
+  await page.getByRole("checkbox", { name: "年初记录", exact: true }).uncheck();
+  await page.getByRole("button", { name: "完成筛选", exact: true }).click();
+  await expect(preview).toContainText("共 5 条");
+  await expect(preview).not.toContainText("年初记录");
+  const waiting = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载文字", exact: true }).click();
+  const file = await waiting;
+  expect(file.suggestedFilename()).toContain("2026-01-01_2026-12-31");
+  const { readFile } = await import("node:fs/promises");
+  expect(await readFile(await file.path(), "utf8")).toContain("共 5 条");
+  await page.getByRole("tab", { name: "长图", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "回顾长图第 1 张", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "保存长图", exact: true }).click();
+  const imageDownload = page.waitForEvent("download");
+  await page.getByRole("link", { name: "下载第 1 张", exact: true }).click();
+  expect((await imageDownload).suggestedFilename()).toContain(
+    "2026-01-01_2026-12-31",
+  );
+});
+
+test("跨月周包含周一至周日，无效范围在筛选完成后也不能导出", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-11-01T10:00:00+08:00"));
+  await add(page, "上周日", "2026-10-25");
+  await add(page, "本周一", "2026-10-26");
+  await add(page, "本周日", "2026-11-01");
+  await page.getByRole("button", { name: "导出记录", exact: true }).click();
+  await page.getByRole("button", { name: "本周", exact: true }).click();
+  await page.getByRole("tab", { name: "纯文字", exact: true }).click();
+  await expect(page.getByLabel("文字预览")).toContainText(
+    "2026-10-26 至 2026-11-01",
+  );
+  await expect(page.getByLabel("文字预览")).toContainText("共 2 条");
+  await expect(page.getByLabel("文字预览")).not.toContainText("上周日");
+  await page.getByRole("button", { name: "筛选记录", exact: true }).click();
+  await page.getByRole("button", { name: "自定义", exact: true }).click();
+  await page.getByLabel("开始日期").fill("2025-01-01");
+  await page.getByRole("button", { name: "完成筛选", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "最多一年" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "下载文字", exact: true }),
+  ).not.toBeVisible();
+  await page.getByLabel("开始日期").fill("");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "有效的开始" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "筛选记录", exact: true }),
+  ).toBeDisabled();
 });

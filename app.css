@@ -484,22 +484,6 @@ button svg {
 .export-body {
   padding: 20px 22px 30px;
 }
-.export-month {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 14px;
-  margin-bottom: 20px;
-}
-.export-month input {
-  font: inherit;
-  background: transparent;
-  border: 1px solid var(--line);
-  padding: 8px;
-  border-radius: 8px;
-  max-width: 65%;
-}
 .segments {
   display: flex;
   background: #e9ebdf;
@@ -676,4 +660,59 @@ button svg {
 }
 .export-buttons {
   padding-bottom: max(15px, env(safe-area-inset-bottom));
+}
+
+.range-presets {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #e9ebdf;
+  border-radius: 11px;
+  margin-bottom: 16px;
+}
+.range-presets button {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  border-radius: 8px;
+  font-size: 14px;
+  padding: 6px 2px;
+}
+.range-presets [aria-pressed="true"] {
+  background: var(--paper);
+  font-weight: 600;
+  box-shadow: 0 1px 4px #282b2014;
+}
+.custom-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.custom-range label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+}
+.custom-range input {
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 4px;
+  font-size: 14px;
+}
+.custom-range small {
+  grid-column: 1/-1;
+  color: var(--muted);
+  font-size: 12px;
+}
+.range-description {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  margin: 12px 0 18px;
 }

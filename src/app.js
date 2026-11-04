@@ -277,7 +277,7 @@ async function start() {
 }
 await start();
 
-el("#export-open").onclick = () => openExport(entries, month);
+el("#export-open").onclick = () => openExport(entries);
 
 setupSettings((restoredEntries) => {
   entries = restoredEntries;

@@ -1,3 +1,10 @@
+import {
+  presetRange,
+  dateRange,
+  rangeError,
+  rangeTitle,
+  maximumEnd,
+} from "./range.js";
 import { makeImages } from "./images.js";
 /** @typedef {import('./data.js').Entry} Entry */
 /** @param {string} id @returns {HTMLElement} */
@@ -7,29 +14,44 @@ function el(id) {
   return node;
 }
 const dialog = /** @type {HTMLDialogElement} */ (el("export-dialog"));
-const monthInput = /** @type {HTMLInputElement} */ (el("export-month"));
+const startInput = /** @type {HTMLInputElement} */ (el("range-start"));
+const endInput = /** @type {HTMLInputElement} */ (el("range-end"));
 /** @type {Entry[]} */ let all = [];
 /** @type {Set<string>} */ let selected = new Set();
-let month = "",
-  imageMode = true;
+let range = presetRange("month");
+let imageMode = true;
+let rangeValid = true;
 /** @type {string[]} */ let imageUrls = [];
 let generation = 0;
-/** @param {Entry[]} entries @param {string} value */
-export function openExport(entries, value) {
+/** @param {Entry[]} entries */
+export function openExport(entries) {
   all = [...entries];
-  month = value;
-  monthInput.value = value;
-  selected = new Set(monthly().map((e) => e.id));
+  range = presetRange("month");
+  rangeValid = true;
+  startInput.value = range.start;
+  endInput.value = range.end;
+  el("custom-range").hidden = true;
+  el("range-error").textContent = "";
+  document
+    .querySelectorAll("[data-range]")
+    .forEach((node) =>
+      node.setAttribute(
+        "aria-pressed",
+        String(node.getAttribute("data-range") === "month"),
+      ),
+    );
+  selected = new Set(inRange().map((e) => e.id));
   imageMode = true;
   el("filter-panel").hidden = true;
   el("export-content").hidden = false;
   el("export-error").textContent = "";
+  /** @type {HTMLButtonElement} */ (el("filter-open")).disabled = false;
   render();
   dialog.showModal();
 }
-function monthly() {
+function inRange() {
   return all
-    .filter((e) => e.date.startsWith(month))
+    .filter((e) => e.date >= range.start && e.date <= range.end)
     .sort(
       (a, b) =>
         a.date.localeCompare(b.date) ||
@@ -38,20 +60,20 @@ function monthly() {
     );
 }
 function chosen() {
-  return monthly().filter((e) => selected.has(e.id));
+  return inRange().filter((e) => selected.has(e.id));
 }
-/** @param {Entry[]} entries @param {string} month */
-export function asText(entries, month) {
+/** @param {Entry[]} entries @param {import("./range.js").ExportRange} range */
+export function asText(entries, range) {
   const days = new Set(entries.map((e) => e.date)).size;
   const lines = [
-    `瞎JB记 · ${month.slice(0, 4)}年${Number(month.slice(5))}月`,
+    `瞎JB记 · ${rangeTitle(range)}`,
     `记录 ${days} 天，共 ${entries.length} 条`,
   ];
   let date = "";
   for (const entry of entries) {
     if (entry.date !== date) {
       date = entry.date;
-      lines.push("", `${Number(date.slice(5, 7))}月${Number(date.slice(8))}日`);
+      lines.push("", date);
     }
     lines.push(`• ${entry.text}`);
   }
@@ -69,8 +91,10 @@ export function download(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 function render() {
+  if (!rangeValid) return;
+  el("range-description").textContent = rangeTitle(range);
   const items = chosen();
-  el("text-preview").textContent = asText(items, month);
+  el("text-preview").textContent = asText(items, range);
   el("selection-count").textContent =
     `已选 ${items.length} 条记录，${new Set(items.map((e) => e.date)).size} 天`;
   el("image-preview").hidden = !imageMode;
@@ -89,7 +113,7 @@ function render() {
 function filters() {
   const list = el("filter-list");
   list.replaceChildren();
-  for (const item of monthly()) {
+  for (const item of inRange()) {
     const label = document.createElement("label");
     label.className = "filter-item";
     const input = document.createElement("input");
@@ -110,16 +134,53 @@ function filters() {
     label.append(input, content);
     list.append(label);
   }
-  if (!monthly().length) list.textContent = "这个月还没有记录。";
+  if (!inRange().length) list.textContent = "这个范围还没有记录。";
 }
 el("export-close").onclick = () => dialog.close();
-monthInput.onchange = () => {
-  if (!/^\d{4}-\d{2}$/.test(monthInput.value)) return;
-  month = monthInput.value;
-  selected = new Set(monthly().map((e) => e.id));
+function applyRange() {
+  const error = rangeError(startInput.value, endInput.value);
+  rangeValid = !error;
+  el("range-error").textContent = error;
+  el("export-content").hidden = !rangeValid || !el("filter-panel").hidden;
+  /** @type {HTMLButtonElement} */ (el("filter-open")).disabled = !rangeValid;
+  clearImages();
+  el("image-downloads").replaceChildren();
+  el("export-error").textContent = "";
+  if (!rangeValid) return;
+  range = dateRange(startInput.value, endInput.value, range.label);
+  selected = new Set(inRange().map((e) => e.id));
   render();
   filters();
+}
+startInput.onchange = () => {
+  endInput.min = startInput.value;
+  if (startInput.value) endInput.max = maximumEnd(startInput.value);
+  applyRange();
 };
+endInput.onchange = applyRange;
+document.querySelectorAll("[data-range]").forEach((node) =>
+  node.addEventListener("click", () => {
+    const kind = node.getAttribute("data-range");
+    document
+      .querySelectorAll("[data-range]")
+      .forEach((button) =>
+        button.setAttribute("aria-pressed", String(button === node)),
+      );
+    el("custom-range").hidden = kind !== "custom";
+    if (kind === "custom") {
+      range = { ...range, label: "自定义范围" };
+      startInput.value = range.start;
+      endInput.value = range.end;
+    } else {
+      range = presetRange(kind ?? "month");
+      startInput.value = range.start;
+      endInput.value = range.end;
+    }
+    endInput.min = startInput.value;
+    endInput.max = maximumEnd(startInput.value);
+    applyRange();
+  }),
+);
 el("filter-open").onclick = () => {
   el("filter-panel").hidden = false;
   el("export-content").hidden = true;
@@ -127,11 +188,11 @@ el("filter-open").onclick = () => {
 };
 el("filter-done").onclick = () => {
   el("filter-panel").hidden = true;
-  el("export-content").hidden = false;
+  el("export-content").hidden = !rangeValid;
   render();
 };
 el("select-all").onclick = () => {
-  selected = new Set(monthly().map((e) => e.id));
+  selected = new Set(inRange().map((e) => e.id));
   render();
   filters();
 };
@@ -150,7 +211,7 @@ el("image-tab").onclick = () => {
 };
 el("copy-text").onclick = async () => {
   try {
-    await navigator.clipboard.writeText(asText(chosen(), month));
+    await navigator.clipboard.writeText(asText(chosen(), range));
     el("export-error").textContent = "已复制文字";
   } catch {
     el("export-error").textContent = "复制失败，请下载文字文件或重试。";
@@ -159,8 +220,8 @@ el("copy-text").onclick = async () => {
 el("download-text").onclick = () => {
   try {
     download(
-      new Blob([asText(chosen(), month)], { type: "text/plain;charset=utf-8" }),
-      `瞎JB记-${month}.txt`,
+      new Blob([asText(chosen(), range)], { type: "text/plain;charset=utf-8" }),
+      `瞎JB记-${range.start}_${range.end}.txt`,
     );
     el("export-error").textContent = "已发起文字下载";
   } catch {
@@ -181,19 +242,19 @@ async function renderImages(items) {
   const button = /** @type {HTMLButtonElement} */ (el("make-images"));
   button.disabled = true;
   if (!items.length) {
-    el("image-preview").textContent = "选几条记录，再把这个月带走。";
+    el("image-preview").textContent = "选几条记录，再把这些日子带走。";
     return;
   }
   el("image-preview").textContent = "正在排版…";
   try {
-    const blobs = await makeImages(items, month);
+    const blobs = await makeImages(items, range);
     if (version !== generation) return;
     el("image-preview").replaceChildren();
     imageUrls = blobs.map((blob) => URL.createObjectURL(blob));
     imageUrls.forEach((url, i) => {
       const image = document.createElement("img");
       image.src = url;
-      image.alt = `月度长图第 ${i + 1} 张`;
+      image.alt = `回顾长图第 ${i + 1} 张`;
       el("image-preview").append(image);
     });
     button.disabled = false;
@@ -211,7 +272,7 @@ el("make-images").onclick = () => {
   imageUrls.forEach((url, i) => {
     const a = document.createElement("a");
     a.href = url;
-    a.download = `瞎JB记-${month}-${String(i + 1).padStart(2, "0")}.png`;
+    a.download = `瞎JB记-${range.start}_${range.end}-${String(i + 1).padStart(2, "0")}.png`;
     a.textContent = `下载第 ${i + 1} 张`;
     links.append(a);
   });
