@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f9f8f2" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>瞎JB记</title>
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <link rel="icon" href="icons/icon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <a class="brand" href="./">瞎<span>JB</span>记<i></i></a
+        ><button id="settings-open" class="icon" aria-label="设置与备份">
+          •••
+        </button>
+      </header>
+      <section class="month-heading">
+        <div>
+          <p id="year"></p>
+          <h1 id="month-title"></h1>
+        </div>
+        <nav aria-label="月份导航">
+          <button id="previous" class="icon" aria-label="上个月">‹</button
+          ><button id="today" class="quiet">今天</button
+          ><button id="next" class="icon" aria-label="下个月">›</button>
+        </nav>
+      </section>
+      <div class="summary">
+        <span>这个月，记了 <strong aria-label="本月记录天数">0</strong> 天</span
+        ><span>共 <strong aria-label="本月记录条数">0</strong> 条</span>
+      </div>
+      <section class="calendar-wrap" aria-label="月历">
+        <div class="week" aria-hidden="true">
+          <span>一</span><span>二</span><span>三</span><span>四</span
+          ><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div id="calendar" class="calendar"></div>
+      </section>
+      <section class="daily" aria-label="当天记录">
+        <div class="daily-heading">
+          <h2 id="day-title"></h2>
+          <span id="day-count"></span>
+        </div>
+        <div id="entries"></div>
+      </section>
+      <footer class="main-actions">
+        <button id="export-open" class="export-action" aria-label="导出本月">
+          ↥ 导出本月</button
+        ><button id="add" class="primary" aria-label="记一条">＋ 记一条</button>
+      </footer>
+      <p class="storage-hint" id="offline-state" role="status">
+        内容保存在这台设备上
+      </p>
+    </main>
+    <dialog id="editor" class="sheet">
+      <form id="entry-form">
+        <header class="sheet-heading">
+          <button type="button" data-close>取消</button>
+          <h2 id="editor-title">记一条</h2>
+          <button class="save" aria-label="保存记录">保存 ✓</button>
+        </header>
+        <div class="write">
+          <label class="date-label"
+            >记录日期<input
+              name="date"
+              type="date"
+              required
+              aria-label="记录日期"
+          /></label>
+          <h3>今天，又发生了什么<span>？</span></h3>
+          <textarea
+            name="text"
+            aria-label="记录内容"
+            placeholder="随便写，怎么记都行。"
+            required
+          ></textarea>
+          <div class="write-meta">
+            <span>自由文字，无需分类</span><span id="letter-count">0 字</span>
+          </div>
+          <p id="save-error" class="error" role="alert"></p>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="export-dialog" class="sheet export-sheet">
+      <header class="sheet-heading">
+        <button id="export-close" aria-label="关闭导出">‹ 返回</button>
+        <h2>月度回顾</h2>
+        <button id="filter-open">筛选记录</button>
+      </header>
+      <div class="export-body">
+        <label class="export-month"
+          >导出月份 <input type="month" id="export-month"
+        /></label>
+        <section id="filter-panel" hidden>
+          <div class="filter-toolbar">
+            <button id="select-all">全选</button
+            ><button id="select-none">全不选</button
+            ><button id="filter-done" class="save">完成筛选</button>
+          </div>
+          <div id="filter-list"></div>
+        </section>
+        <div id="export-content">
+          <div class="segments" role="tablist" aria-label="导出格式">
+            <button role="tab" id="image-tab" aria-selected="false">
+              月度长图</button
+            ><button role="tab" id="text-tab" aria-selected="true">
+              纯文字
+            </button>
+          </div>
+          <div id="image-preview" aria-label="长图预览" hidden></div>
+          <pre id="text-preview" aria-label="文字预览"></pre>
+          <p id="selection-count"></p>
+          <p class="export-feedback" id="export-error" role="status"></p>
+          <div class="export-buttons">
+            <button id="copy-text" class="quiet">复制文字</button
+            ><button id="download-text" class="primary">下载文字</button
+            ><button id="make-images" class="primary" hidden>保存长图</button>
+          </div>
+          <div id="image-downloads"></div>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="settings-dialog" class="sheet">
+      <header class="sheet-heading">
+        <button id="settings-close" aria-label="关闭设置">‹ 返回</button>
+        <h2>设置与备份</h2>
+        <span></span>
+      </header>
+      <div class="settings-body">
+        <h3>你的记录，在你手里。</h3>
+        <p>内容保存在当前浏览器。定期留一份备份，换设备时也能带走。</p>
+        <button id="backup-all" class="primary">导出全部备份</button>
+        <hr />
+        <h3>从备份恢复</h3>
+        <p>
+          恢复会整体替换当前所有记录，不会合并。先下载现有内容的备份，再确认替换。
+        </p>
+        <label class="file-picker"
+          >选择备份文件<input
+            type="file"
+            id="backup-file"
+            aria-label="选择备份文件"
+            accept=".json,application/json"
+        /></label>
+        <div id="restore-stage" hidden>
+          <p id="restore-summary"></p>
+          <button id="backup-before-restore" class="quiet">
+            下载当前备份并继续</button
+          ><button id="confirm-restore" class="primary danger" hidden>
+            确认替换全部记录
+          </button>
+        </div>
+        <p class="error" id="backup-error" role="alert"></p>
+        <p id="backup-status" role="status"></p>
+        <hr />
+        <section id="install-section">
+          <h3>放到桌面，随手打开</h3>
+          <p id="install-help">
+            iPhone：在 Safari
+            分享菜单中选择“添加到主屏幕”。Android：在浏览器菜单中选择“安装应用”或“添加到主屏幕”。
+          </p>
+          <button id="install-app" class="quiet" hidden>安装到桌面</button>
+        </section>
+      </div>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden>
+      <span></span><button id="undo" hidden>撤销</button>
+    </div>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>

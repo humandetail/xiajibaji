@@ -1,0 +1,20 @@
+{
+  "name": "xiajibaji",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 4175 --bind 127.0.0.1",
+    "typecheck": "tsc -p jsconfig.json",
+    "test": "playwright test",
+    "format:check": "prettier --check src tests index.html app.css sw.js playwright.config.js jsconfig.json package.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
