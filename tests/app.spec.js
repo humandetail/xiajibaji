@@ -125,13 +125,11 @@ test("全量备份可恢复，替换前留存副本，无效备份不改数据",
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await add(page, "新加的不保留");
   await page.getByRole("button", { name: "设置与备份", exact: true }).click();
-  await page
-    .getByLabel("选择备份文件")
-    .setInputFiles({
-      name: "bad.json",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"version":999}'),
-    });
+  await page.getByLabel("选择备份文件").setInputFiles({
+    name: "bad.json",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"version":999}'),
+  });
   await expect(page.getByRole("alert")).toContainText("不受支持");
   await page.getByLabel("选择备份文件").setInputFiles(backupPath);
   await expect(page.getByText("将整体替换为 2 条记录")).toBeVisible();
@@ -205,26 +203,24 @@ test("六行月份、未来日期、原文安全显示与摘要数量", async ({
 test("恢复事务失败保持原记录，并可取消恢复", async ({ page }) => {
   await add(page, "保留原记录");
   await page.getByRole("button", { name: "设置与备份", exact: true }).click();
-  await page
-    .getByLabel("选择备份文件")
-    .setInputFiles({
-      name: "restore.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({
-          app: "xiajibaji",
-          version: 1,
-          entries: [
-            {
-              id: "restore-id",
-              date: "2026-10-01",
-              text: "不应出现",
-              createdAt: 1,
-            },
-          ],
-        }),
-      ),
-    });
+  await page.getByLabel("选择备份文件").setInputFiles({
+    name: "restore.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        app: "xiajibaji",
+        version: 1,
+        entries: [
+          {
+            id: "restore-id",
+            date: "2026-10-01",
+            text: "不应出现",
+            createdAt: 1,
+          },
+        ],
+      }),
+    ),
+  });
   await page
     .getByRole("button", { name: "下载当前备份并继续", exact: true })
     .click();
@@ -245,4 +241,125 @@ test("恢复事务失败保持原记录，并可取消恢复", async ({ page }) 
   await page.getByRole("button", { name: "上个月", exact: true }).click();
   await page.getByRole("button", { name: /2026-10-24，1 条/ }).click();
   await expect(page.getByLabel("当天记录")).toContainText("保留原记录");
+});
+test("导出失败保留筛选并可重试，排除记录不会出现在图片或文字", async ({
+  page,
+}) => {
+  await add(page, "公开记录");
+  await add(page, "私密记录");
+  await page.getByRole("button", { name: "导出本月", exact: true }).click();
+  await page.getByRole("button", { name: "筛选记录", exact: true }).click();
+  await page.getByRole("checkbox", { name: "私密记录", exact: true }).uncheck();
+  await page.getByRole("button", { name: "完成筛选", exact: true }).click();
+  await page.evaluate(() => {
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    window.painted = [];
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+      window.painted.push(text);
+      return original.call(this, text, ...args);
+    };
+    window.encode = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (callback) {
+      callback(null);
+    };
+  });
+  await page.getByRole("tab", { name: "纯文字", exact: true }).click();
+  await page.getByRole("tab", { name: "月度长图", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "长图生成失败" }),
+  ).toBeVisible();
+  await expect(page.getByText("已选 1 条记录，1 天")).toBeVisible();
+  expect(await page.evaluate(() => window.painted.join("\n"))).toContain(
+    "公开记录",
+  );
+  expect(await page.evaluate(() => window.painted.join("\n"))).not.toContain(
+    "私密记录",
+  );
+  await page.evaluate(() => {
+    HTMLCanvasElement.prototype.toBlob = window.encode;
+  });
+  await page.getByRole("tab", { name: "纯文字", exact: true }).click();
+  await page.evaluate(() => {
+    navigator.clipboard.writeText = async () => {
+      throw new Error("Denied");
+    };
+  });
+  await page.getByRole("button", { name: "复制文字", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "复制失败" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("文字预览")).not.toContainText("私密记录");
+  await page.getByRole("tab", { name: "月度长图", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "月度长图第 1 张", exact: true }),
+  ).toBeVisible();
+});
+test("写入成功后即使读取暂时失败，也不误报失败或重复记录", async ({ page }) => {
+  await page.getByRole("button", { name: "记一条", exact: true }).click();
+  await page.getByLabel("记录日期").fill("2026-10-24");
+  await page.getByLabel("记录内容").fill("只保存一次");
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function (...args) {
+      if (!args[1] || args[1] === "readonly")
+        throw new DOMException("Read unavailable", "UnknownError");
+      return original.apply(this, args);
+    };
+  });
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ has: page.getByLabel("记录内容") }),
+  ).not.toBeVisible();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+  await page
+    .getByRole("button", { name: "删除记录：只保存一次", exact: true })
+    .click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+  await page.reload();
+  await page.getByRole("button", { name: "上个月", exact: true }).click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+});
+test("跨时区恢复保留原所属日期，并能读取原日期的记录", async ({ browser }) => {
+  const context = await browser.newContext({
+    timezoneId: "America/Los_Angeles",
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  await page.clock.install({ time: new Date("2026-11-04T00:30:00+08:00") });
+  await page.goto("http://127.0.0.1:4175/");
+  await page.getByRole("button", { name: "设置与备份", exact: true }).click();
+  await page.getByLabel("选择备份文件").setInputFiles({
+    name: "timezone.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        app: "xiajibaji",
+        version: 1,
+        entries: [
+          {
+            id: "timezone-id",
+            date: "2026-11-04",
+            text: "在上海记下的这一天",
+            createdAt: 1,
+          },
+        ],
+      }),
+    ),
+  });
+  await expect(page.getByText("将整体替换为 1 条记录")).toBeVisible();
+  await page
+    .getByRole("button", { name: "下载当前备份并继续", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "确认替换全部记录", exact: true })
+    .click();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.getByRole("button", { name: /2026-11-04，1 条/ }).click();
+  await expect(page.getByLabel("当天记录")).toContainText("在上海记下的这一天");
+  await expect(
+    page.getByRole("button", { name: "记一条", exact: true }),
+  ).toBeDisabled();
+  await context.close();
 });

@@ -8,12 +8,12 @@ export function today() {
 export function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [y, m, d] = value.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
+  const date = new Date(0);
+  date.setFullYear(y, m - 1, d);
   return (
     date.getFullYear() === y &&
     date.getMonth() === m - 1 &&
-    date.getDate() === d &&
-    value <= today()
+    date.getDate() === d
   );
 }
 /** @type {Promise<IDBDatabase>|undefined} */

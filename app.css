@@ -671,3 +671,9 @@ button svg {
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
+.sheet-heading {
+  padding-top: max(16px, env(safe-area-inset-top));
+}
+.export-buttons {
+  padding-bottom: max(15px, env(safe-area-inset-bottom));
+}

@@ -1,3 +1,6 @@
+const worker = /** @type {ServiceWorkerGlobalScope} */ (
+  /** @type {unknown} */ (self)
+);
 const CACHE = "xiajibaji-shell-v1";
 const ASSETS = [
   "./",
@@ -15,15 +18,15 @@ const ASSETS = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];
-self.addEventListener("install", (event) => {
+worker.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
       .then((cache) => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting()),
+      .then(() => worker.skipWaiting()),
   );
 });
-self.addEventListener("activate", (event) => {
+worker.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
@@ -36,13 +39,13 @@ self.addEventListener("activate", (event) => {
             .map((key) => caches.delete(key)),
         ),
       )
-      .then(() => self.clients.claim()),
+      .then(() => worker.clients.claim()),
   );
 });
-self.addEventListener("fetch", (event) => {
+worker.addEventListener("fetch", (event) => {
   if (
     event.request.method !== "GET" ||
-    new URL(event.request.url).origin !== self.location.origin
+    new URL(event.request.url).origin !== worker.location.origin
   )
     return;
   event.respondWith(

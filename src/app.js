@@ -90,7 +90,7 @@ function render() {
     button.className = `day${items.length ? " has" : ""}${date === selected ? " selected" : ""}`;
     button.setAttribute("aria-label", `${date}，${items.length} 条`);
     button.setAttribute("aria-pressed", String(date === selected));
-    button.disabled = date > data.today();
+    button.disabled = date > data.today() && !items.length;
     const num = document.createElement("span");
     num.className = "num";
     num.textContent = String(d).padStart(2, "0");
@@ -113,6 +113,8 @@ function render() {
     };
     grid.append(button);
   }
+  /** @type {HTMLButtonElement} */ (el("#add")).disabled =
+    selected > data.today();
   const dayEntries = entries.filter((e) => e.date === selected).sort(order);
   el("#day-title").textContent =
     `${Number(selected.slice(5, 7))} 月 ${Number(selected.slice(8))} 日`;
@@ -157,7 +159,8 @@ function render() {
 function openEditor(entry) {
   editing = entry?.id ?? "";
   dateInput.value = entry?.date ?? selected;
-  dateInput.max = data.today();
+  dateInput.max =
+    entry && entry.date > data.today() ? entry.date : data.today();
   textInput.value = entry?.text ?? "";
   el("#editor-title").textContent = entry ? "修改记录" : "记一条";
   el("#save-error").textContent = "";
@@ -169,27 +172,36 @@ form.onsubmit = async (/** @type {SubmitEvent} */ event) => {
   event.preventDefault();
   if (busy) return;
   el("#save-error").textContent = "";
-  if (!data.validDate(dateInput.value) || !textInput.value.trim()) {
+  const old = entries.find((e) => e.id === editing);
+  if (
+    !data.validDate(dateInput.value) ||
+    (dateInput.value > data.today() && dateInput.value !== old?.date) ||
+    !textInput.value.trim()
+  ) {
     el("#save-error").textContent = "请选择今天或过去的日期，并写下记录内容。";
     return;
   }
   busy = true;
+  dateInput.disabled = true;
+  textInput.readOnly = true;
   const saveButton = /** @type {HTMLButtonElement} */ (
     form.querySelector(".save")
   );
   saveButton.disabled = true;
   try {
-    const old = entries.find((e) => e.id === editing);
     const entry = {
       id: old?.id ?? crypto.randomUUID(),
       date: dateInput.value,
       text: textInput.value,
       createdAt:
         old?.createdAt ??
-        Math.max(Date.now(), ...entries.map((e) => e.createdAt + 1)),
+        entries.reduce(
+          (latest, e) => Math.max(latest, e.createdAt + 1),
+          Date.now(),
+        ),
     };
     await data.save(entry);
-    entries = await data.load();
+    entries = [...entries.filter((item) => item.id !== entry.id), entry];
     selected = entry.date;
     month = selected.slice(0, 7);
     render();
@@ -201,6 +213,8 @@ form.onsubmit = async (/** @type {SubmitEvent} */ event) => {
   } finally {
     busy = false;
     saveButton.disabled = false;
+    dateInput.disabled = false;
+    textInput.readOnly = false;
   }
 };
 textInput.oninput = () => {
@@ -217,7 +231,7 @@ el("#add").onclick = () => openEditor();
 async function deleteEntry(entry) {
   try {
     await data.remove(entry.id);
-    entries = await data.load();
+    entries = entries.filter((item) => item.id !== entry.id);
     deleted = entry;
     render();
     toast("已删除记录", true);
@@ -227,9 +241,10 @@ async function deleteEntry(entry) {
 }
 el("#undo").onclick = async () => {
   if (!deleted) return;
+  const entry = deleted;
   try {
-    await data.save(deleted);
-    entries = await data.load();
+    await data.save(entry);
+    entries = [...entries.filter((item) => item.id !== entry.id), entry];
     deleted = null;
     render();
     toast("已撤销删除");
@@ -266,6 +281,7 @@ el("#export-open").onclick = () => openExport(entries, month);
 
 setupSettings(async () => {
   deleted = null;
+  el("#toast").hidden = true;
   await start();
 });
 
