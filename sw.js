@@ -1,7 +1,7 @@
 const worker = /** @type {ServiceWorkerGlobalScope} */ (
   /** @type {unknown} */ (self)
 );
-const CACHE = "xiajibaji-shell-v2";
+const CACHE = "xiajibaji-shell-v3";
 const ASSETS = [
   "./",
   "./index.html",

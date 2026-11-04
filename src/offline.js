@@ -10,12 +10,13 @@ export async function setupOffline() {
   });
   if (button)
     button.onclick = async () => {
-      if (!pending) return;
+      const request = pending;
+      if (!request) return;
+      pending = null;
+      button.hidden = true;
       try {
-        await pending.prompt();
-        const choice = await pending.userChoice;
-        if (choice.outcome === "accepted") button.hidden = true;
-        pending = null;
+        await request.prompt();
+        await request.userChoice;
       } catch {
         const help = document.getElementById("install-help");
         if (help)

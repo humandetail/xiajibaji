@@ -436,3 +436,42 @@ test("恢复已提交但读取失败时立即展示备份内容，不让旧记�
   await page.getByRole("button", { name: /2026-10-23，1 条/ }).click();
   await expect(page.getByLabel("当天记录")).toContainText("恢复后编辑的新记录");
 });
+
+test("取消安装后隐藏失效入口，新请求可重新安装且异常提供菜单指引", async ({
+  page,
+}) => {
+  await expect(
+    page.getByRole("status").filter({ hasText: "已可离线使用" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "设置与备份", exact: true }).click();
+  async function offer(outcome) {
+    await page.evaluate((outcome) => {
+      const event = new Event("beforeinstallprompt");
+      Object.assign(event, {
+        prompt: async () => {
+          if (outcome === "error") throw new Error("Prompt unavailable");
+        },
+        userChoice: Promise.resolve({ outcome }),
+      });
+      window.dispatchEvent(event);
+    }, outcome);
+  }
+  const install = page.getByRole("button", { name: "安装到桌面", exact: true });
+  await offer("dismissed");
+  await expect(install).toBeVisible();
+  await install.click();
+  await expect(install).not.toBeVisible();
+  await expect(page.getByText(/iPhone：在 Safari/)).toBeVisible();
+  await offer("accepted");
+  await expect(install).toBeVisible();
+  await install.click();
+  await expect(install).not.toBeVisible();
+  await offer("error");
+  await install.click();
+  await expect(install).not.toBeVisible();
+  await expect(
+    page.getByText("请使用浏览器菜单中的“添加到主屏幕”或“安装应用”。", {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
