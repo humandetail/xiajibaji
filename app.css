@@ -716,3 +716,74 @@ button svg {
   overflow-wrap: anywhere;
   margin: 12px 0 18px;
 }
+
+.plan-summary {
+  font-size: 13px;
+  color: var(--muted);
+  margin: -8px 2px 18px;
+}
+.plan-summary strong {
+  color: #526a72;
+}
+.day.planned:not(.selected) {
+  background: #e8eff0;
+}
+.plan-snippet {
+  color: #49646d !important;
+}
+.group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 20px;
+}
+.group-heading h3,
+.records-heading {
+  font-size: 14px;
+  margin: 10px 0;
+  color: var(--muted);
+}
+.group-heading .quiet {
+  font-size: 12px;
+  background: none;
+  padding: 8px;
+}
+.plan-content {
+  min-width: 0;
+  flex: 1;
+}
+.plan-state {
+  display: block;
+  font-size: 12px;
+  color: #49646d;
+  margin-bottom: 5px;
+}
+.plan-entry:before {
+  background: #718d94;
+}
+.main-actions {
+  gap: 8px;
+}
+.main-actions .primary {
+  padding: 12px 18px;
+}
+.main-actions #add-plan {
+  padding: 12px 8px;
+  white-space: nowrap;
+}
+
+#reopen-record {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 15px/1.8 inherit;
+  background: #eeefe6;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.segments [aria-pressed="true"] {
+  background: var(--paper);
+  box-shadow: 0 1px 4px #282b2014;
+  font-weight: 600;
+}

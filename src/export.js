@@ -1,3 +1,4 @@
+import { today } from "./data.js";
 import {
   presetRange,
   dateRange,
@@ -17,15 +18,29 @@ const dialog = /** @type {HTMLDialogElement} */ (el("export-dialog"));
 const startInput = /** @type {HTMLInputElement} */ (el("range-start"));
 const endInput = /** @type {HTMLInputElement} */ (el("range-end"));
 /** @type {Entry[]} */ let all = [];
+/** @type {Entry[]} */ let records = [];
+/** @type {import("./data.js").Plan[]} */ let plans = [];
+let kind = "record";
 /** @type {Set<string>} */ let selected = new Set();
 let range = presetRange("month");
 let imageMode = true;
 let rangeValid = true;
 /** @type {string[]} */ let imageUrls = [];
 let generation = 0;
-/** @param {Entry[]} entries */
-export function openExport(entries) {
-  all = [...entries];
+/** @param {Entry[]} entries @param {import("./data.js").Plan[]} [planItems] */
+export function openExport(entries, planItems = []) {
+  records = [...entries];
+  plans = [...planItems];
+  all = records;
+  kind = "record";
+  document
+    .querySelectorAll("[data-export-type]")
+    .forEach((node) =>
+      node.setAttribute(
+        "aria-pressed",
+        String(node.getAttribute("data-export-type") === kind),
+      ),
+    );
   range = presetRange("month");
   rangeValid = true;
   startInput.value = range.start;
@@ -62,12 +77,22 @@ function inRange() {
 function chosen() {
   return inRange().filter((e) => selected.has(e.id));
 }
-/** @param {Entry[]} entries @param {import("./range.js").ExportRange} range */
-export function asText(entries, range) {
+function exportItems() {
+  return chosen().map((item) => {
+    if (kind !== "plan") return item;
+    const plan = /** @type {import('./data.js').Plan} */ (item);
+    return {
+      ...item,
+      text: `[${plan.completed ? "已完成" : plan.date < today() ? "未完成·已过期" : "未完成"}] ${plan.text}`,
+    };
+  });
+}
+/** @param {Entry[]} entries @param {import("./range.js").ExportRange} range @param {string} [type] */
+export function asText(entries, range, type = "record") {
   const days = new Set(entries.map((e) => e.date)).size;
   const lines = [
-    `瞎JB记 · ${rangeTitle(range)}`,
-    `记录 ${days} 天，共 ${entries.length} 条`,
+    `瞎JB记 · ${type === "plan" ? "计划 · " : ""}${rangeTitle(range)}`,
+    `${type === "plan" ? "安排" : "记录"} ${days} 天，共 ${entries.length} ${type === "plan" ? "项计划" : "条"}`,
   ];
   let date = "";
   for (const entry of entries) {
@@ -93,10 +118,10 @@ export function download(blob, filename) {
 function render() {
   if (!rangeValid) return;
   el("range-description").textContent = rangeTitle(range);
-  const items = chosen();
-  el("text-preview").textContent = asText(items, range);
+  const items = exportItems();
+  el("text-preview").textContent = asText(items, range, kind);
   el("selection-count").textContent =
-    `已选 ${items.length} 条记录，${new Set(items.map((e) => e.date)).size} 天`;
+    `已选 ${items.length} ${kind === "plan" ? "项计划" : "条记录"}，${new Set(items.map((e) => e.date)).size} 天`;
   el("image-preview").hidden = !imageMode;
   el("text-preview").hidden = imageMode;
   el("copy-text").hidden = imageMode;
@@ -211,7 +236,7 @@ el("image-tab").onclick = () => {
 };
 el("copy-text").onclick = async () => {
   try {
-    await navigator.clipboard.writeText(asText(chosen(), range));
+    await navigator.clipboard.writeText(asText(exportItems(), range, kind));
     el("export-error").textContent = "已复制文字";
   } catch {
     el("export-error").textContent = "复制失败，请下载文字文件或重试。";
@@ -220,8 +245,10 @@ el("copy-text").onclick = async () => {
 el("download-text").onclick = () => {
   try {
     download(
-      new Blob([asText(chosen(), range)], { type: "text/plain;charset=utf-8" }),
-      `瞎JB记-${range.start}_${range.end}.txt`,
+      new Blob([asText(exportItems(), range, kind)], {
+        type: "text/plain;charset=utf-8",
+      }),
+      `瞎JB记-${kind === "plan" ? "计划-" : ""}${range.start}_${range.end}.txt`,
     );
     el("export-error").textContent = "已发起文字下载";
   } catch {
@@ -247,14 +274,14 @@ async function renderImages(items) {
   }
   el("image-preview").textContent = "正在排版…";
   try {
-    const blobs = await makeImages(items, range);
+    const blobs = await makeImages(items, range, kind);
     if (version !== generation) return;
     el("image-preview").replaceChildren();
     imageUrls = blobs.map((blob) => URL.createObjectURL(blob));
     imageUrls.forEach((url, i) => {
       const image = document.createElement("img");
       image.src = url;
-      image.alt = `回顾长图第 ${i + 1} 张`;
+      image.alt = `${kind === "plan" ? "计划" : "回顾"}长图第 ${i + 1} 张`;
       el("image-preview").append(image);
     });
     button.disabled = false;
@@ -272,7 +299,7 @@ el("make-images").onclick = () => {
   imageUrls.forEach((url, i) => {
     const a = document.createElement("a");
     a.href = url;
-    a.download = `瞎JB记-${range.start}_${range.end}-${String(i + 1).padStart(2, "0")}.png`;
+    a.download = `瞎JB记-${kind === "plan" ? "计划-" : ""}${range.start}_${range.end}-${String(i + 1).padStart(2, "0")}.png`;
     a.textContent = `下载第 ${i + 1} 张`;
     links.append(a);
   });
@@ -281,3 +308,19 @@ el("make-images").onclick = () => {
   links.scrollIntoView({ block: "nearest" });
 };
 dialog.addEventListener("close", clearImages);
+
+document.querySelectorAll("[data-export-type]").forEach((node) =>
+  node.addEventListener("click", () => {
+    kind = node.getAttribute("data-export-type") ?? "record";
+    all = kind === "plan" ? plans : records;
+    document
+      .querySelectorAll("[data-export-type]")
+      .forEach((button) =>
+        button.setAttribute("aria-pressed", String(button === node)),
+      );
+    selected = new Set(inRange().map((e) => e.id));
+    el("export-error").textContent = "";
+    render();
+    filters();
+  }),
+);

@@ -50,3 +50,15 @@ export function presetRange(kind) {
 export function rangeTitle(range) {
   return `${range.label} · ${range.start} 至 ${range.end}`;
 }
+/** @param {string} value @param {number} days */
+export function shiftDate(value, days) {
+  const date = new Date(value + "T12:00:00");
+  date.setDate(date.getDate() + days);
+  return dateText(date);
+}
+/** @param {string} value */
+export function weekRange(value) {
+  const date = new Date(value + "T12:00:00");
+  const start = shiftDate(value, -(date.getDay() + 6) % 7);
+  return dateRange(start, shiftDate(start, 6), "本周");
+}

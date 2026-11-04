@@ -1,8 +1,8 @@
 /** @typedef {import('./data.js').Entry} Entry */
 const WIDTH = 1080,
   MAX_HEIGHT = 2400;
-/** @param {Entry[]} entries @param {import("./range.js").ExportRange} range @returns {Promise<Blob[]>} */
-export async function makeImages(entries, range) {
+/** @param {Entry[]} entries @param {import("./range.js").ExportRange} range @param {string} [kind] @returns {Promise<Blob[]>} */
+export async function makeImages(entries, range, kind = "record") {
   await document.fonts.ready;
   /** @type {HTMLCanvasElement[]} */ const pages = [];
   let canvas = document.createElement("canvas");
@@ -33,10 +33,17 @@ export async function makeImages(entries, range) {
     ctx.textAlign = "left";
     ctx.fillStyle = "#292b26";
     ctx.font = 'bold 78px "Songti SC",STSong,serif';
-    ctx.fillText(`${range.label}，就这样记下来了。`, 72, 224, 940);
+    ctx.fillText(
+      kind === "plan"
+        ? `${range.label}的计划。`
+        : `${range.label}，就这样记下来了。`,
+      72,
+      224,
+      940,
+    );
     ctx.font = "40px sans-serif";
     ctx.fillText(
-      `记录 ${new Set(entries.map((e) => e.date)).size} 天，共 ${entries.length} 条`,
+      `${kind === "plan" ? "安排" : "记录"} ${new Set(entries.map((e) => e.date)).size} 天，共 ${entries.length} ${kind === "plan" ? "项计划" : "条"}`,
       72,
       310,
     );

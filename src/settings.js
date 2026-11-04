@@ -6,24 +6,25 @@ function el(id) {
   if (!node) throw new Error(id);
   return node;
 }
-/** @param {(entries:data.Entry[])=>void} onRestore */
+/** @param {(snapshot:data.Snapshot)=>void} onRestore */
 export function setupSettings(onRestore) {
   const dialog = /** @type {HTMLDialogElement} */ (el("settings-dialog")),
     fileInput = /** @type {HTMLInputElement} */ (el("backup-file"));
-  /** @type {data.Entry[]|null} */ let pending = null;
+  /** @type {(data.Snapshot & {legacy:boolean})|null} */ let pending = null;
   let busy = false,
     selection = 0;
-  /** @param {data.Entry[]} entries @param {string} [prefix] */
-  function backup(entries, prefix = "瞎JB记-备份") {
+  /** @param {data.Snapshot} snapshot @param {string} [prefix] */
+  function backup(snapshot, prefix = "瞎JB记-备份") {
     download(
       new Blob(
         [
           JSON.stringify(
             {
               app: "xiajibaji",
-              version: 1,
+              version: 2,
               exportedAt: new Date().toISOString(),
-              entries,
+              entries: snapshot.entries,
+              plans: snapshot.plans,
             },
             null,
             2,
@@ -41,6 +42,7 @@ export function setupSettings(onRestore) {
     el("restore-stage").hidden = true;
     el("backup-error").textContent = "";
     el("backup-status").textContent = "";
+    el("restored-plans").textContent = "";
     dialog.showModal();
   };
   el("settings-close").onclick = () => {
@@ -53,7 +55,7 @@ export function setupSettings(onRestore) {
     if (busy) return;
     busy = true;
     try {
-      backup(await data.load());
+      backup(await data.loadAll());
       el("backup-status").textContent =
         "已发起全部记录的备份下载，请保留文件。";
       el("backup-error").textContent = "";
@@ -69,13 +71,18 @@ export function setupSettings(onRestore) {
     el("restore-stage").hidden = true;
     el("backup-error").textContent = "";
     el("backup-status").textContent = "";
+    el("restored-plans").textContent = "";
     try {
       const file = fileInput.files?.[0];
       if (!file) return;
       const items = data.readBackup(JSON.parse(await file.text()));
       if (version !== selection) return;
       pending = items;
-      el("restore-summary").textContent = `将整体替换为 ${items.length} 条记录`;
+      el("restore-summary").textContent =
+        `将整体替换为 ${items.entries.length} 条记录，${items.plans.length} 项计划`;
+      el("restore-legacy").textContent = items.legacy
+        ? "旧版备份不含计划，恢复会清空当前全部计划。"
+        : "记录与计划将一起整体替换。";
       el("restore-stage").hidden = false;
       el("backup-before-restore").hidden = false;
       el("confirm-restore").hidden = true;
@@ -89,7 +96,7 @@ export function setupSettings(onRestore) {
     if (!pending || busy) return;
     busy = true;
     try {
-      backup(await data.load(), "瞎JB记-恢复前备份");
+      backup(await data.loadAll(), "瞎JB记-恢复前备份");
       el("backup-before-restore").hidden = true;
       el("confirm-restore").hidden = false;
       el("backup-status").textContent =
@@ -112,7 +119,8 @@ export function setupSettings(onRestore) {
       el("restore-stage").hidden = true;
       el("backup-error").textContent = "";
       onRestore(items);
-      el("backup-status").textContent = `已恢复 ${items.length} 条记录`;
+      el("backup-status").textContent = `已恢复 ${items.entries.length} 条记录`;
+      el("restored-plans").textContent = `已恢复 ${items.plans.length} 项计划`;
     } catch {
       el("backup-error").textContent = "恢复失败，现有记录未被替换，请重试。";
     } finally {

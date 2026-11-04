@@ -37,6 +37,10 @@
         <span>这个月，记了 <strong aria-label="本月记录天数">0</strong> 天</span
         ><span>共 <strong aria-label="本月记录条数">0</strong> 条</span>
       </div>
+      <p class="plan-summary">
+        本月计划 <strong aria-label="本月计划数量">0</strong> 项 ·
+        <span id="pending-count">0 项未完成</span>
+      </p>
       <section class="calendar-wrap" aria-label="月历">
         <div class="week" aria-hidden="true">
           <span>一</span><span>二</span><span>三</span><span>四</span
@@ -44,16 +48,28 @@
         </div>
         <div id="calendar" class="calendar"></div>
       </section>
-      <section class="daily" aria-label="当天记录">
+      <section class="daily" aria-label="所选日期">
         <div class="daily-heading">
           <h2 id="day-title"></h2>
           <span id="day-count"></span>
         </div>
-        <div id="entries"></div>
+        <section aria-label="当天计划">
+          <div class="group-heading">
+            <h3>计划</h3>
+            <button id="copy-week" class="quiet">复制到下一周</button>
+          </div>
+          <div id="plans"></div>
+        </section>
+        <section aria-label="当天记录">
+          <h3 class="records-heading">记录</h3>
+          <div id="entries"></div>
+        </section>
       </section>
       <footer class="main-actions">
         <button id="export-open" class="export-action" aria-label="导出记录">
           ↥ 导出记录</button
+        ><button id="add-plan" class="quiet" aria-label="新增计划">
+          ＋ 计划</button
         ><button id="add" class="primary" aria-label="记一条">＋ 记一条</button>
       </footer>
       <p class="storage-hint" id="offline-state" role="status">
@@ -69,13 +85,10 @@
         </header>
         <div class="write">
           <label class="date-label"
-            >记录日期<input
-              name="date"
-              type="date"
-              required
-              aria-label="记录日期"
+            ><span id="date-caption">记录日期</span
+            ><input name="date" type="date" required aria-label="记录日期"
           /></label>
-          <h3>今天，又发生了什么<span>？</span></h3>
+          <h3 id="editor-prompt">今天，又发生了什么？</h3>
           <textarea
             name="text"
             aria-label="记录内容"
@@ -89,6 +102,33 @@
         </div>
       </form>
     </dialog>
+    <dialog id="reopen-dialog" class="sheet">
+      <header class="sheet-heading">
+        <button id="reopen-cancel">取消</button>
+        <h2>撤销完成</h2>
+        <span></span>
+      </header>
+      <div class="settings-body">
+        <p>确认后计划恢复为未完成，并删除下方关联记录。</p>
+        <pre id="reopen-record"></pre>
+        <p class="error" id="reopen-error" role="alert"></p>
+        <button id="reopen-confirm" class="primary">确认撤销完成</button>
+      </div>
+    </dialog>
+    <dialog id="copy-dialog" class="sheet">
+      <header class="sheet-heading">
+        <button id="copy-cancel">取消</button>
+        <h2>复制到下一周</h2>
+        <span></span>
+      </header>
+      <div class="settings-body">
+        <p id="copy-source"></p>
+        <div id="copy-list"></div>
+        <p id="copy-summary"></p>
+        <p id="copy-error" class="error" role="alert"></p>
+        <button id="copy-confirm" class="primary">确认新增计划</button>
+      </div>
+    </dialog>
     <dialog id="export-dialog" class="sheet export-sheet">
       <header class="sheet-heading">
         <button id="export-close" aria-label="关闭导出">‹ 返回</button>
@@ -96,6 +136,10 @@
         <button id="filter-open">筛选记录</button>
       </header>
       <div class="export-body">
+        <div class="segments" role="group" aria-label="导出内容类型">
+          <button data-export-type="record" aria-pressed="true">记录</button
+          ><button data-export-type="plan" aria-pressed="false">计划</button>
+        </div>
         <div class="range-presets" role="group" aria-label="导出范围">
           <button data-range="year" aria-pressed="false">本年</button
           ><button data-range="month" aria-pressed="true">本月</button
@@ -159,7 +203,7 @@
         <hr />
         <h3>从备份恢复</h3>
         <p>
-          恢复会整体替换当前所有记录，不会合并。先下载现有内容的备份，再确认替换。
+          恢复会整体替换当前所有记录与计划，不会合并。先下载现有内容的备份，再确认替换。
         </p>
         <label class="file-picker"
           >选择备份文件<input
@@ -170,14 +214,16 @@
         /></label>
         <div id="restore-stage" hidden>
           <p id="restore-summary"></p>
+          <p id="restore-legacy"></p>
           <button id="backup-before-restore" class="quiet">
             下载当前备份并继续</button
           ><button id="confirm-restore" class="primary danger" hidden>
-            确认替换全部记录
+            确认替换全部数据
           </button>
         </div>
         <p class="error" id="backup-error" role="alert"></p>
         <p id="backup-status" role="status"></p>
+        <p id="restored-plans" role="status"></p>
         <hr />
         <section id="install-section">
           <h3>放到桌面，随手打开</h3>

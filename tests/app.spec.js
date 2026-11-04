@@ -154,7 +154,7 @@ test("全量备份可恢复，替换前留存副本，无效备份不改数据",
     JSON.parse(await readFile(await current.path(), "utf8")).entries,
   ).toHaveLength(3);
   await page
-    .getByRole("button", { name: "确认替换全部记录", exact: true })
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
     .click();
   await expect(page.getByText("已恢复 2 条记录")).toBeVisible();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
@@ -200,7 +200,12 @@ test("六行月份、未来日期、原文安全显示与摘要数量", async ({
   await page.getByRole("button", { name: "今天", exact: true }).click();
   await expect(
     page.getByRole("button", { name: /2026-11-05，0 条/ }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await expect(
+    page.getByRole("button", { name: "记一条", exact: true }),
   ).toBeDisabled();
+  await page.getByRole("button", { name: "今天", exact: true }).click();
   await page.getByRole("button", { name: "记一条", exact: true }).click();
   await page.getByLabel("记录日期").fill("2026-11-05");
   await page.getByLabel("记录内容").fill("未来记录");
@@ -244,7 +249,7 @@ test("恢复事务失败保持原记录，并可取消恢复", async ({ page }) 
     };
   });
   await page
-    .getByRole("button", { name: "确认替换全部记录", exact: true })
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText("恢复失败");
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
@@ -368,7 +373,7 @@ test("跨时区恢复保留原所属日期，并能读取原日期的记录", as
     .getByRole("button", { name: "下载当前备份并继续", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "确认替换全部记录", exact: true })
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
     .click();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   await page.getByRole("button", { name: /2026-11-04，1 条/ }).click();
@@ -416,7 +421,7 @@ test("恢复已提交但读取失败时立即展示备份内容，不让旧记�
     };
   });
   await page
-    .getByRole("button", { name: "确认替换全部记录", exact: true })
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
     .click();
   await expect(
     page.getByText("已恢复 1 条记录", { exact: true }),
@@ -591,4 +596,406 @@ test("跨月周包含周一至周日，无效范围在筛选完成后也不能�
   await expect(
     page.getByRole("button", { name: "筛选记录", exact: true }),
   ).toBeDisabled();
+});
+
+test("未来计划可新增修改改期，记录统计独立且刷新后保留", async ({ page }) => {
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await page.getByRole("button", { name: "新增计划", exact: true }).click();
+  await page.getByLabel("计划内容").fill("明天跑步\n三公里");
+  await page.getByRole("button", { name: "保存计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("明天跑步");
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
+  await expect(page.getByLabel("本月计划数量")).toHaveText("1");
+  await page.reload();
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await page
+    .getByRole("button", { name: "修改计划：明天跑步", exact: true })
+    .click();
+  await page.getByLabel("计划日期").fill("2026-11-06");
+  await page.getByLabel("计划内容").fill("改成后天跑步");
+  await page.getByRole("button", { name: "保存计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("改成后天跑步");
+  await expect(
+    page.getByRole("button", { name: "记一条", exact: true }),
+  ).toBeDisabled();
+});
+
+async function addPlan(page, text, date = "2026-11-05") {
+  await page.getByRole("button", { name: "今天", exact: true }).click();
+  await page.getByRole("button", { name: "新增计划", exact: true }).click();
+  await page.getByLabel("计划日期").fill(date);
+  await page.getByLabel("计划内容").fill(text);
+  await page.getByRole("button", { name: "保存计划", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ has: page.getByLabel("计划内容") }),
+  ).not.toBeVisible();
+}
+test("完成计划生成独立记录，撤销展示修改后的关联记录并可再次完成", async ({
+  page,
+}) => {
+  await addPlan(page, "未来跑步");
+  await page
+    .getByRole("button", { name: "完成计划：未来跑步", exact: true })
+    .click();
+  await expect(page.getByLabel("记录日期")).toHaveValue("2026-11-04");
+  await page.getByLabel("记录内容").fill("提前跑完三公里");
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("已完成");
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+  await page.getByRole("button", { name: /2026-11-04，1 条/ }).click();
+  await page
+    .getByRole("button", { name: "修改记录：提前跑完三公里", exact: true })
+    .click();
+  await page.getByLabel("记录内容").fill("实际跑了五公里");
+  await page.getByRole("button", { name: "保存记录", exact: true }).click();
+  await expect(page.getByLabel("当天记录")).toContainText("实际跑了五公里");
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await page
+    .getByRole("button", { name: "撤销完成：未来跑步", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog").filter({ hasText: "确认撤销完成" }),
+  ).toContainText("实际跑了五公里");
+  await page.getByRole("button", { name: "确认撤销完成", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("未完成");
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
+  await page
+    .getByRole("button", { name: "完成计划：未来跑步", exact: true })
+    .click();
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+  await page
+    .getByRole("button", { name: "删除计划：未来跑步", exact: true })
+    .click();
+  await expect(page.getByLabel("本月计划数量")).toHaveText("0");
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+});
+
+test("周复制按星期批量新增，重复操作继续新增且副本未完成", async ({ page }) => {
+  await addPlan(page, "周四跑步");
+  await page
+    .getByRole("button", { name: "完成计划：周四跑步", exact: true })
+    .click();
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("已完成");
+  await page.getByRole("button", { name: "复制到下一周", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ hasText: "确认新增计划" }),
+  ).toContainText("2026-11-12");
+  await page.getByRole("button", { name: "确认新增计划", exact: true }).click();
+  await expect(page.getByLabel("本月计划数量")).toHaveText("2");
+  await page.getByRole("button", { name: "复制到下一周", exact: true }).click();
+  await page.getByRole("button", { name: "确认新增计划", exact: true }).click();
+  await expect(page.getByLabel("本月计划数量")).toHaveText("3");
+  await page.getByRole("button", { name: /2026-11-12，0 条/ }).click();
+  await expect(
+    page.getByLabel("当天计划").getByText("未完成", { exact: true }),
+  ).toHaveCount(2);
+  await expect(page.getByLabel("本月记录条数")).toHaveText("1");
+  await page.reload();
+  await page.getByRole("button", { name: /2026-11-12，0 条/ }).click();
+  await expect(
+    page.getByLabel("当天计划").getByText("未完成", { exact: true }),
+  ).toHaveCount(2);
+});
+
+test("计划和记录分别导出，状态和计划数量进入实际文字文件与长图", async ({
+  page,
+}) => {
+  await addPlan(page, "导出这项计划");
+  await page
+    .getByRole("button", { name: "完成计划：导出这项计划", exact: true })
+    .click();
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("已完成");
+  await page.getByRole("button", { name: "导出记录", exact: true }).click();
+  await page.getByRole("button", { name: "计划", exact: true }).click();
+  await page.getByRole("tab", { name: "纯文字", exact: true }).click();
+  await expect(page.getByLabel("文字预览")).toContainText(
+    "[已完成] 导出这项计划",
+  );
+  await expect(page.getByLabel("文字预览")).toContainText("1 项计划");
+  const wait = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载文字", exact: true }).click();
+  const file = await wait;
+  expect(file.suggestedFilename()).toContain("计划");
+  const { readFile } = await import("node:fs/promises");
+  expect(await readFile(await file.path(), "utf8")).toContain(
+    "[已完成] 导出这项计划",
+  );
+  await page.getByRole("tab", { name: "长图", exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "计划长图第 1 张", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "记录", exact: true }).click();
+  await page.getByRole("tab", { name: "纯文字", exact: true }).click();
+  await expect(page.getByLabel("文字预览")).toContainText("共 1 条");
+  await expect(page.getByLabel("文字预览")).not.toContainText("[已完成]");
+});
+
+test("新版备份保留计划及完成关联，旧版恢复明确清空计划", async ({ page }) => {
+  await addPlan(page, "备份计划");
+  await page
+    .getByRole("button", { name: "完成计划：备份计划", exact: true })
+    .click();
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("已完成");
+  await page.getByRole("button", { name: "设置与备份", exact: true }).click();
+  const wait = page.waitForEvent("download");
+  await page.getByRole("button", { name: "导出全部备份", exact: true }).click();
+  const file = await wait;
+  const { readFile } = await import("node:fs/promises");
+  const backup = JSON.parse(await readFile(await file.path(), "utf8"));
+  expect(backup.version).toBe(2);
+  expect(backup.plans).toHaveLength(1);
+  expect(backup.plans[0].recordId).toBe(backup.entries[0].id);
+  await page.getByLabel("选择备份文件").setInputFiles({
+    name: "old.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({ app: "xiajibaji", version: 1, entries: [] }),
+    ),
+  });
+  await expect(
+    page.getByText("旧版备份不含计划，恢复会清空当前全部计划。", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "下载当前备份并继续", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
+    .click();
+  await expect(
+    page.getByText("已恢复 0 条记录", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await expect(page.getByLabel("本月计划数量")).toHaveText("0");
+  await page.getByRole("button", { name: "设置与备份", exact: true }).click();
+  await page.getByLabel("选择备份文件").setInputFiles(await file.path());
+  await page
+    .getByRole("button", { name: "下载当前备份并继续", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
+    .click();
+  await expect(
+    page.getByText("已恢复 1 条记录", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("已完成");
+  await page
+    .getByRole("button", { name: "撤销完成：备份计划", exact: true })
+    .click();
+  await page.getByRole("button", { name: "确认撤销完成", exact: true }).click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
+});
+
+test("完成事务失败不生成半条记录，记录独立删除后仍可撤销完成", async ({
+  page,
+}) => {
+  await addPlan(page, "原子完成");
+  await page
+    .getByRole("button", { name: "完成计划：原子完成", exact: true })
+    .click();
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    window.restoreTransaction = original;
+    IDBDatabase.prototype.transaction = function (...args) {
+      const tx = original.apply(this, args);
+      if (args[1] === "readwrite") queueMicrotask(() => tx.abort());
+      return tx;
+    };
+  });
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "保存失败" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("记录内容")).toHaveValue("原子完成");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("未完成");
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
+  await page.evaluate(() => {
+    IDBDatabase.prototype.transaction = window.restoreTransaction;
+  });
+  await page
+    .getByRole("button", { name: "完成计划：原子完成", exact: true })
+    .click();
+  await page.getByRole("button", { name: "确认完成计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("已完成");
+  await page.getByRole("button", { name: "今天", exact: true }).click();
+  await page
+    .getByRole("button", { name: "删除记录：原子完成", exact: true })
+    .click();
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await page
+    .getByRole("button", { name: "撤销完成：原子完成", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog").filter({ hasText: "确认撤销完成" }),
+  ).toContainText("关联记录已删除");
+  await page.getByRole("button", { name: "确认撤销完成", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("未完成");
+});
+test("过期计划可保留原日期改字，复制跳过过去目标，跨年周复制正确", async ({
+  page,
+}) => {
+  await addPlan(page, "旧安排");
+  await page.clock.setFixedTime(new Date("2026-11-20T10:00:00+08:00"));
+  await page.getByRole("button", { name: "今天", exact: true }).click();
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("未完成·已过期");
+  await page
+    .getByRole("button", { name: "修改计划：旧安排", exact: true })
+    .click();
+  await page.getByLabel("计划内容").fill("过期改字");
+  await page.getByRole("button", { name: "保存计划", exact: true }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("过期改字");
+  await page.getByRole("button", { name: "复制到下一周", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ hasText: "确认新增计划" }),
+  ).toContainText("跳过 1 项过去日期");
+  await expect(
+    page.getByRole("button", { name: "确认新增计划", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await addPlan(page, "跨年计划", "2026-12-31");
+  await page.getByRole("button", { name: "复制到下一周", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").filter({ hasText: "确认新增计划" }),
+  ).toContainText("2027-01-07");
+  await page.getByRole("button", { name: "确认新增计划", exact: true }).click();
+  await page.getByRole("button", { name: "下个月", exact: true }).click();
+  await page.getByRole("button", { name: /2027-01-07，0 条/ }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("跨年计划");
+});
+test("旧版浏览器数据库升级保留记录，计划离线关闭重开可读写", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    baseURL: test.info().project.use.baseURL,
+    timezoneId: "Asia/Shanghai",
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  await page.clock.install({ time: new Date("2026-11-04T10:00:00+08:00") });
+  await page.goto("/icons/icon.svg");
+  // Seed the historical browser storage format; assertions stay at the user interface.
+  await page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const req = indexedDB.open("xiajibaji", 1);
+        req.onupgradeneeded = () =>
+          req.result.createObjectStore("entries", { keyPath: "id" });
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+          const db = req.result,
+            tx = db.transaction("entries", "readwrite");
+          tx.objectStore("entries").add({
+            id: "legacy",
+            date: "2026-11-04",
+            text: "升级前的记录",
+            createdAt: 1,
+          });
+          tx.oncomplete = () => {
+            db.close();
+            resolve(null);
+          };
+        };
+      }),
+  );
+  await page.goto("/");
+  await expect(page.getByLabel("当天记录")).toContainText("升级前的记录");
+  await addPlan(page, "离线计划");
+  await expect(
+    page.getByRole("status").filter({ hasText: "已可离线使用" }),
+  ).toBeVisible();
+  await page.close();
+  await context.setOffline(true);
+  const offline = await context.newPage();
+  await offline.goto("/");
+  await offline.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await expect(offline.getByLabel("当天计划")).toContainText("离线计划");
+  await addPlan(offline, "离线新增计划", "2026-11-06");
+  await offline.reload();
+  await offline.getByRole("button", { name: /2026-11-06，0 条/ }).click();
+  await expect(offline.getByLabel("当天计划")).toContainText("离线新增计划");
+  await context.close();
+});
+
+test("周复制和恢复写入失败均不留下半批数据，已有计划可读回", async ({
+  page,
+}) => {
+  await addPlan(page, "完整保留");
+  await page.getByRole("button", { name: "复制到下一周", exact: true }).click();
+  await page.evaluate(() => {
+    const original = IDBDatabase.prototype.transaction;
+    window.restoreTransaction = original;
+    IDBDatabase.prototype.transaction = function (...args) {
+      const tx = original.apply(this, args);
+      if (args[1] === "readwrite") queueMicrotask(() => tx.abort());
+      return tx;
+    };
+  });
+  await page.getByRole("button", { name: "确认新增计划", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "复制失败" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.getByLabel("本月计划数量")).toHaveText("1");
+  await page.evaluate(() => {
+    IDBDatabase.prototype.transaction = window.restoreTransaction;
+  });
+  await page.getByRole("button", { name: "设置与备份", exact: true }).click();
+  await page
+    .getByLabel("选择备份文件")
+    .setInputFiles({
+      name: "v2.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        JSON.stringify({
+          app: "xiajibaji",
+          version: 2,
+          entries: [
+            { id: "new-e", date: "2026-11-04", text: "不应新增", createdAt: 2 },
+          ],
+          plans: [
+            {
+              id: "new-p",
+              date: "2026-11-06",
+              text: "也不应新增",
+              createdAt: 3,
+              completed: true,
+              recordId: "new-e",
+            },
+          ],
+        }),
+      ),
+    });
+  await page
+    .getByRole("button", { name: "下载当前备份并继续", exact: true })
+    .click();
+  await page.evaluate(() => {
+    const original = window.restoreTransaction;
+    IDBDatabase.prototype.transaction = function (...args) {
+      const tx = original.apply(this, args);
+      if (args[1] === "readwrite") queueMicrotask(() => tx.abort());
+      return tx;
+    };
+  });
+  await page
+    .getByRole("button", { name: "确认替换全部数据", exact: true })
+    .click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "恢复失败" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: /2026-11-05，0 条/ }).click();
+  await expect(page.getByLabel("当天计划")).toContainText("完整保留");
+  await expect(page.getByLabel("本月计划数量")).toHaveText("1");
+  await expect(page.getByLabel("本月记录条数")).toHaveText("0");
 });
