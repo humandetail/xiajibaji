@@ -159,7 +159,8 @@ function filters() {
     label.append(input, content);
     list.append(label);
   }
-  if (!inRange().length) list.textContent = "这个范围还没有记录。";
+  if (!inRange().length)
+    list.textContent = `这个范围还没有${kind === "plan" ? "计划" : "记录"}。`;
 }
 el("export-close").onclick = () => dialog.close();
 function applyRange() {
@@ -269,7 +270,10 @@ async function renderImages(items) {
   const button = /** @type {HTMLButtonElement} */ (el("make-images"));
   button.disabled = true;
   if (!items.length) {
-    el("image-preview").textContent = "选几条记录，再把这些日子带走。";
+    el("image-preview").textContent =
+      kind === "plan"
+        ? "选几项计划，再把这些日子带走。"
+        : "选几条记录，再把这些日子带走。";
     return;
   }
   el("image-preview").textContent = "正在排版…";
