@@ -57,7 +57,7 @@ export function setupSettings(onRestore) {
     try {
       backup(await data.loadAll());
       el("backup-status").textContent =
-        "已发起全部记录的备份下载，请保留文件。";
+        "已发起全部记录与计划的备份下载，请保留文件。";
       el("backup-error").textContent = "";
     } catch {
       el("backup-error").textContent = "备份失败，请检查存储与下载权限后重试。";
@@ -122,7 +122,8 @@ export function setupSettings(onRestore) {
       el("backup-status").textContent = `已恢复 ${items.entries.length} 条记录`;
       el("restored-plans").textContent = `已恢复 ${items.plans.length} 项计划`;
     } catch {
-      el("backup-error").textContent = "恢复失败，现有记录未被替换，请重试。";
+      el("backup-error").textContent =
+        "恢复失败，现有记录与计划未被替换，请重试。";
     } finally {
       busy = false;
       fileInput.disabled = false;

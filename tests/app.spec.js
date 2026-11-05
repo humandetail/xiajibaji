@@ -341,14 +341,17 @@ test("写入成功后即使读取暂时失败，也不误报失败或重复记�
   await page.getByRole("button", { name: "上个月", exact: true }).click();
   await expect(page.getByLabel("本月记录条数")).toHaveText("1");
 });
-test("跨时区恢复保留原所属日期，并能读取原日期的记录", async ({ browser }) => {
+test("跨时区恢复保留原所属日期，并能读取原日期的记录", async ({
+  browser,
+  baseURL,
+}) => {
   const context = await browser.newContext({
     timezoneId: "America/Los_Angeles",
     viewport: { width: 390, height: 844 },
   });
   const page = await context.newPage();
   await page.clock.install({ time: new Date("2026-11-04T00:30:00+08:00") });
-  await page.goto("http://127.0.0.1:4175/");
+  await page.goto(baseURL);
   await page.getByRole("button", { name: "设置与备份", exact: true }).click();
   await page.getByLabel("选择备份文件").setInputFiles({
     name: "timezone.json",
@@ -568,6 +571,7 @@ test("跨月周包含周一至周日，无效范围在筛选完成后也不能�
   page,
 }) => {
   await page.clock.setFixedTime(new Date("2026-11-01T10:00:00+08:00"));
+  await page.getByRole("button", { name: "今天", exact: true }).click();
   await add(page, "上周日", "2026-10-25");
   await add(page, "本周一", "2026-10-26");
   await add(page, "本周日", "2026-11-01");
@@ -723,10 +727,21 @@ test("计划和记录分别导出，状态和计划数量进入实际文字文�
   expect(await readFile(await file.path(), "utf8")).toContain(
     "[已完成] 导出这项计划",
   );
+  await page.evaluate(() => {
+    window.planDrawing = [];
+    const draw = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+      window.planDrawing.push(text);
+      return draw.call(this, text, ...args);
+    };
+  });
+  await page.getByRole("button", { name: "本年", exact: true }).click();
   await page.getByRole("tab", { name: "长图", exact: true }).click();
   await expect(
     page.getByRole("img", { name: "计划长图第 1 张", exact: true }),
   ).toBeVisible();
+  expect(await page.evaluate(() => window.planDrawing)).toContain("有计划");
+  expect(await page.evaluate(() => window.planDrawing)).not.toContain("有记录");
   await page.getByRole("button", { name: "记录", exact: true }).click();
   await page.getByRole("tab", { name: "纯文字", exact: true }).click();
   await expect(page.getByLabel("文字预览")).toContainText("共 1 条");
@@ -950,31 +965,29 @@ test("周复制和恢复写入失败均不留下半批数据，已有计划可�
     IDBDatabase.prototype.transaction = window.restoreTransaction;
   });
   await page.getByRole("button", { name: "设置与备份", exact: true }).click();
-  await page
-    .getByLabel("选择备份文件")
-    .setInputFiles({
-      name: "v2.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({
-          app: "xiajibaji",
-          version: 2,
-          entries: [
-            { id: "new-e", date: "2026-11-04", text: "不应新增", createdAt: 2 },
-          ],
-          plans: [
-            {
-              id: "new-p",
-              date: "2026-11-06",
-              text: "也不应新增",
-              createdAt: 3,
-              completed: true,
-              recordId: "new-e",
-            },
-          ],
-        }),
-      ),
-    });
+  await page.getByLabel("选择备份文件").setInputFiles({
+    name: "v2.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        app: "xiajibaji",
+        version: 2,
+        entries: [
+          { id: "new-e", date: "2026-11-04", text: "不应新增", createdAt: 2 },
+        ],
+        plans: [
+          {
+            id: "new-p",
+            date: "2026-11-06",
+            text: "也不应新增",
+            createdAt: 3,
+            completed: true,
+            recordId: "new-e",
+          },
+        ],
+      }),
+    ),
+  });
   await page
     .getByRole("button", { name: "下载当前备份并继续", exact: true })
     .click();

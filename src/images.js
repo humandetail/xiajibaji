@@ -118,7 +118,7 @@ export async function makeImages(entries, range, kind = "record") {
       ctx.fillRect(72, y - 40, 18, 18);
       ctx.fillStyle = "#64685e";
       ctx.font = "24px sans-serif";
-      ctx.fillText("有记录", 104, y - 22);
+      ctx.fillText(kind === "plan" ? "有计划" : "有记录", 104, y - 22);
     }
     ctx.strokeStyle = "#dfe2d5";
     ctx.lineWidth = 2;
