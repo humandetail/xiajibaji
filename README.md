@@ -20,6 +20,14 @@ npm test
 
 浏览器测试默认使用本机 Chrome，可通过 CHROME_PATH 指定浏览器可执行文件；未指定时使用 Playwright Chromium（首次执行 `npx playwright install chromium`）。
 
+## GitHub Pages 部署
+
+推送到 main 后，`.github/workflows/pages.yml` 会执行类型、格式与浏览器测试，通过后发布静态应用到 https://humandetail.github.io/xiajibaji/ 。支持在 Actions 页面手动运行。
+
+仓库 Settings → Pages → Build and deployment 的 Source 需选择 GitHub Actions。发布内容仅包含应用页面、脚本、样式、图标和清单，不包含开发依赖、测试或过程文档。
+
+GitHub Pages 与本地地址使用不同的浏览器数据区。迁移使用前，请从原地址的“设置与备份”下载完整备份，再到线上地址恢复；推送代码不会上传浏览器中的记录和计划。
+
 ## 数据
 
 记录与计划保存在当前站点和浏览器的 IndexedDB 中，无账号和云同步。更换域名或浏览器不会自动迁移；请在“设置与备份”中导出备份。恢复采用整体替换，替换前先下载现有内容的备份并确认。
